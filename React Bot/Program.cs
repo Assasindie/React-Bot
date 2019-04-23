@@ -91,7 +91,6 @@ namespace React_Bot
             IUserMessage message = arg1.Value;
             try
             {
-                Console.WriteLine(arg3.Emote.ToString());
                 //checks if the reaction is to the bots message
                 if (_client.CurrentUser.Id == message.Author.Id && message.Content.Contains("React the emoji you want"))
                 {
@@ -195,7 +194,7 @@ namespace React_Bot
             //for the custom emojis and ensures the bot isnt reacting to itself
             if (reactDictionary.ContainsKey(message.Author.Id) && message.Author.Id != _client.CurrentUser.Id)
             {
-                if (random.Next(20) != 1)
+                if (random.Next(20) == 1)
                 {
                     reactDictionary.TryGetValue(message.Author.Id, out List<string> emojiName);
                     List<IEmote> reactEmojis = new List<IEmote>();

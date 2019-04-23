@@ -3,6 +3,7 @@ using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace React_Bot
@@ -10,12 +11,8 @@ namespace React_Bot
     class Program
     {
         private readonly DiscordSocketClient _client;
-        private Emoji emoji = new Emoji("🤓");
         private Random random = new Random();
         private static string token = "";
-
-        //list for global emoji like nerd
-        List<ulong> reactList = new List<ulong>();
 
         //dictionary for specific user(s) emoji(s)
         Dictionary<ulong, List<string>> reactDictionary = new Dictionary<ulong, List<string>>();
@@ -60,7 +57,7 @@ namespace React_Bot
                 MessageCacheSize = 20
             };
             _client = new DiscordSocketClient(config);
-            _client.SetGameAsync("Patrolling Nerds");
+            _client.SetGameAsync("Reacting to 🤡s");
             _client.SetStatusAsync(UserStatus.Invisible);
             _client.Log += LogAsync;
             _client.Ready += ReadyAsync;
@@ -94,24 +91,25 @@ namespace React_Bot
             IUserMessage message = arg1.Value;
             try
             {
+                Console.WriteLine(arg3.Emote.ToString());
                 //checks if the reaction is to the bots message
                 if (_client.CurrentUser.Id == message.Author.Id && message.Content.Contains("React the emoji you want"))
                 {
-
                     List<ulong> targets = new List<ulong>(arg1.Value.MentionedUserIds);
                     foreach (ulong target in targets)
                     {
                         List<string> emoteList = new List<string>
                         {
-                            arg3.Emote.Name
+                            arg3.Emote.ToString()
                         };
                         if (!reactDictionary.ContainsKey(target))
                         {
+                            Console.WriteLine("Added user id: " + target);
                             reactDictionary.Add(target, emoteList);
                         }
                         else 
                         {
-                            reactDictionary[target].Add(arg3.Emote.Name);
+                            reactDictionary[target].Add(arg3.Emote.ToString());
                         }
                     }
                 }
@@ -136,7 +134,7 @@ namespace React_Bot
             }
 
             //set customer emoji(s) for user(s)
-            if (message.Content.Contains("!setcustom"))
+            if (message.Content.Contains("!setcustomemoji"))
             {
                 if (message.MentionedUsers.Count > 0)
                 {
@@ -153,94 +151,13 @@ namespace React_Bot
                 }
             }
 
-            //set global emoji for the reactList
-            if (message.Content.Contains("!setemoji"))
-            {
-                string msg = message.Content.Replace("!setemoji ", "");
-                emoji = new Emoji(msg);
-                await message.Channel.SendMessageAsync(emoji.ToString());
-            }
-
-            if (message.Content.Contains("!addnerd"))
-            {
-                if (message.MentionedUsers.Count > 0)
-                {
-                    foreach (SocketUser user in message.MentionedUsers)
-                    {
-                        if (reactList.Contains(user.Id))
-                        {
-                            await message.Channel.SendMessageAsync("You cant add the same person twice clown");
-                        }
-                        else
-                        {
-                            reactList.Add(user.Id);
-                            await message.Channel.SendMessageAsync("Successfully added " + user.Username + " ");
-                        }
-                    }
-                }
-                else
-                {
-                    await message.Channel.SendMessageAsync("You need to include a person to be nerd reacted!");
-                }
-            }
-
-            //removes user(s) from reactList
-            if (message.Content.Contains("!removenerd"))
-            {
-                if (message.MentionedUsers.Count > 0)
-                {
-                    string failRemove = "";
-                    foreach (SocketUser user in message.MentionedUsers)
-                    {
-                        if (reactList.Contains(user.Id))
-                        {
-                            reactList.Remove(user.Id);
-                            await message.Channel.SendMessageAsync("Successfully removed " + user.Username + " ");
-                        }
-                        else
-                        {
-                            failRemove += "<@!" + user.Username + "> ";
-                        }
-                    }
-                    if (failRemove != "")
-                    {
-                        await message.Channel.SendMessageAsync(failRemove + "cant be removed because they arent nerds");
-                    }
-                }
-                else
-                {
-                    await message.Channel.SendMessageAsync("You need to include a person to be nerd reacted!");
-                }
-            }
-
-
-            //lists current users on the reactList
-            if (message.Content == "!currentnerds")
-            {
-                
-                string currentNerds = "";
-                if (reactList.Count == 0)
-                {
-                    currentNerds = "There are no nerds at the moment!";
-                }
-                else
-                {
-                    foreach (ulong id in reactList)
-                    {
-                        currentNerds += id + " ";
-                    }
-                }
-                await message.Channel.SendMessageAsync(currentNerds);
-            }
-
-
-            //lists current user(s) on the reactDictionary (custom ones)
-            if (message.Content == "!currentcustomnerds")
+            //lists current user(s) on the reactDictionary
+            if (message.Content == "!currentcustomemojis")
             {
                 string currentNerds = "";
                 if (reactDictionary.Count == 0)
                 {
-                    currentNerds = "There are no custom nerds at the moment!";
+                    currentNerds = "There are no custom emojis at the moment!";
                 }
                 else
                 {
@@ -249,7 +166,7 @@ namespace React_Bot
                         string emojis = "";
                         foreach (string value in nerd.Value)
                         {
-                            emojis += value + " ";
+                            emojis += ParseEmote(value) + " ";
                         }
                         currentNerds += ("User = <@!" + nerd.Key + "> Emoji = " + emojis + "\n");
                     }
@@ -258,7 +175,7 @@ namespace React_Bot
             }
 
             //removes user(s) from the custom dictionary
-            if (message.Content.Contains("!removecustomnerd"))
+            if (message.Content.Contains("!removecustomemoji"))
             {
                 string removedMembers = "";
                 if (message.MentionedUsers.Count > 0)
@@ -275,30 +192,37 @@ namespace React_Bot
                 await message.Channel.SendMessageAsync(removedMembers);
             }
 
-            //for the global emojis
-            if (reactList.Contains(message.Author.Id))
-            {
-                if (random.Next(20) == 1)
-                {
-                    await usermsg.AddReactionAsync(emoji);
-                }
-            }
-
             //for the custom emojis and ensures the bot isnt reacting to itself
             if (reactDictionary.ContainsKey(message.Author.Id) && message.Author.Id != _client.CurrentUser.Id)
             {
-                if (random.Next(20) == 1)
+                if (random.Next(20) != 1)
                 {
                     reactDictionary.TryGetValue(message.Author.Id, out List<string> emojiName);
-                    List<Emoji> reactEmojis = new List<Emoji>();
+                    List<IEmote> reactEmojis = new List<IEmote>();
                     foreach (string emoji in emojiName)
                     {
-                        Emoji newEmoji = new Emoji(emoji);
-                        reactEmojis.Add(newEmoji);
+                        reactEmojis.Add(ParseEmote(emoji));
                     }
                     await usermsg.AddReactionsAsync(reactEmojis.ToArray());
                 }
             }
+        }
+
+        private IEmote ParseEmote(string input)
+        {
+            IEmote emote; 
+            //Try to do custom emote ( will not work in the bot is not in the server that the emote is from :( )
+            if (Emote.TryParse(input, out Emote newEmote))
+            {
+                emote = newEmote;
+            }
+            else
+            {
+                Regex rgx = new Regex(@"\p{Cs}");
+                //if the emoji matches the regex proceed normally however if it isnt an Emote or Emoji (possibly an Emote from another server) returns with X
+                emote = rgx.IsMatch(input) ? new Emoji(input) : new Emoji("❌");
+            }
+            return emote;
         }
     }
 }
